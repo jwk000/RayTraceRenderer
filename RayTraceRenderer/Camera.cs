@@ -43,7 +43,7 @@ namespace RayTraceRenderer
                 for (int y = -Ch / 2; y < Ch / 2; y += 1)
                 {
                     Vector3 D = CanvasToViewPort(x, y);
-                    Color c = scene.TraceRay(O, D, d, f);
+                    Color c = scene.TraceRay(O, D, d, f,2);
                     SetPixel(x, y, c);
                 }
             }

@@ -72,6 +72,7 @@ namespace RayTraceRenderer
                 Material mat = new Material();
                 mat.Color = Color.Red;
                 mat.Specular = 500;
+                mat.Reflective = 0.5f;
 
                 Transform tr = new Transform();
                 tr.Position = new Vector3(0, -1, 3);
@@ -90,6 +91,7 @@ namespace RayTraceRenderer
                 Material mat = new Material();
                 mat.Color = Color.LightBlue;
                 mat.Specular = 500;
+                mat.Reflective = 0.5f;
 
                 Transform tr = new Transform();
                 tr.Position = new Vector3(2, 0, 4);
@@ -108,6 +110,7 @@ namespace RayTraceRenderer
                 Material mat = new Material();
                 mat.Color = Color.LightGreen;
                 mat.Specular = 1000;
+                mat.Reflective = 0.5f;
 
                 Transform tr = new Transform();
                 tr.Position = new Vector3(-2, 0, 4);
@@ -126,6 +129,7 @@ namespace RayTraceRenderer
                 Material mat = new Material();
                 mat.Color = Color.Yellow;
                 mat.Specular = 1000;
+                mat.Reflective = 0.5f;
 
                 Transform tr = new Transform();
                 tr.Position = new Vector3(0, -1001, 0);

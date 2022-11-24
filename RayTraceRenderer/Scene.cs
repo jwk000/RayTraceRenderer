@@ -96,7 +96,7 @@ namespace RayTraceRenderer
             return MathF.Min(1, ret);
         }
 
-        public Color TraceRay(Vector3 O, Vector3 D, float tmin, float tmax)
+        public Color TraceRay(Vector3 O, Vector3 D, float tmin, float tmax, int depth)
         {
             GameObject closest_o = ClosestIntersection(O, D, tmin, tmax, out float closest_t);
 
@@ -105,13 +105,28 @@ namespace RayTraceRenderer
                 return mCamera.BGColor;
             }
 
+            Material mat = closest_o.GetComponent<Material>();
             Vector3 P = O + closest_t * D; //相机射线和物体的交点
             Vector3 N = P - closest_o.GetComponent<Transform>().Position;//P点的法线
             N = Vector3.Normalize(N);//归一化
-            float I = ComputeLighting(P, N, -D, closest_o.GetComponent<Material>().Specular);
-            Color c = closest_o.GetComponent<Material>().Color;
-            Color ci = Color.FromArgb((int)(c.R * I),(int)(c.G*I),(int)(c.B*I));
-            return ci;
+            float I = ComputeLighting(P, N, -D, mat.Specular);
+            Color c = mat.Color;
+            Color localcolor = Color.FromArgb((int)(c.R * I), (int)(c.G * I), (int)(c.B * I));
+
+            float r = mat.Reflective;
+            if (depth <= 0 || r <= 0)
+            {
+                return localcolor;
+            }
+
+            Vector3 R = ReflectRay(-D, N);
+            Color reflect_color = TraceRay(P, R, 0.001f, float.MaxValue, depth - 1);
+            Color cc = Color.FromArgb(
+                (int)(localcolor.R * (1 - r) + reflect_color.R * r), 
+                (int)(localcolor.G * (1 - r) + reflect_color.G * r),
+                (int)(localcolor.B * (1 - r) + reflect_color.B * r));
+
+            return cc;
         }
 
         GameObject ClosestIntersection(Vector3 O, Vector3 D, float tmin, float tmax, out float closest_t)
@@ -119,7 +134,7 @@ namespace RayTraceRenderer
             closest_t = tmax;
             GameObject closest_o = null;
 
-            foreach(var obj in mObjects)
+            foreach (var obj in mObjects)
             {
                 IShape shap = obj.GetComponent<AShape>();
                 if (shap != null)
@@ -127,7 +142,7 @@ namespace RayTraceRenderer
                     var list = shap.IntersectRay(O, D);
                     if (list.Count > 0)
                     {
-                        foreach(float t in list)
+                        foreach (float t in list)
                         {
                             if (t > tmin && t < tmax && t < closest_t)
                             {
@@ -142,10 +157,15 @@ namespace RayTraceRenderer
             return closest_o;
         }
 
+        //R是物体表面反射的光线，N是
+        Vector3 ReflectRay(Vector3 R, Vector3 N)
+        {
+            return 2 * N * Vector3.Dot(N, R) - R;
+        }
 
         public void Awake()
         {
-            foreach(var obj in mObjects)
+            foreach (var obj in mObjects)
             {
                 obj.Awake();
             }
@@ -154,7 +174,7 @@ namespace RayTraceRenderer
 
         public void Start()
         {
-            foreach(var obj in mObjects)
+            foreach (var obj in mObjects)
             {
                 obj.Start();
             }
@@ -163,7 +183,7 @@ namespace RayTraceRenderer
 
         public void Update()
         {
-            foreach(var obj in mObjects)
+            foreach (var obj in mObjects)
             {
                 obj.Update();
             }
@@ -173,7 +193,7 @@ namespace RayTraceRenderer
 
         public void Destroy()
         {
-            foreach(var obj in mObjects)
+            foreach (var obj in mObjects)
             {
                 obj.Destroy();
             }

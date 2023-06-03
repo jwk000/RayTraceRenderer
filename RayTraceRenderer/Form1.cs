@@ -23,7 +23,6 @@ namespace RayTraceRenderer
 
         private void Update(object? sender, EventArgs e)
         {
-            Timer.Update();
             mScene.Update();
             Invalidate();
         }

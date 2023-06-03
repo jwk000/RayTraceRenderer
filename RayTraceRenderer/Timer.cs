@@ -10,7 +10,7 @@ namespace RayTraceRenderer
     internal class Timer
     {
         public static float Delta;
-
+        public static float RealTimeSinceStartup { get { return sw.ElapsedMilliseconds / 1000f; } }
         static Stopwatch sw = new Stopwatch();
         public static void Update()
         {

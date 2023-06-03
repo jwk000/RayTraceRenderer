@@ -8,13 +8,17 @@ namespace RayTraceRenderer
         {
             InitializeComponent();
 
-            InitScene();
+            InitScene2();
+
+            mScene.Awake();
+            mScene.Start();
 
             this.DoubleBuffered = true;
-            this.ClientSize = new Size(600, 600);
-            this.timer.Interval = 33; //帧率30帧
+            this.WindowState = FormWindowState.Maximized;
+            this.timer.Interval = 1000;
             this.timer.Tick += Update;
             this.timer.Start();
+
         }
 
         private void Update(object? sender, EventArgs e)
@@ -27,7 +31,7 @@ namespace RayTraceRenderer
         Scene mScene = new Scene();
         void InitScene()
         {
-            {
+            {//环境光
                 GameObject go = new GameObject();
                 AmbientLight light = new AmbientLight();
                 light.Intensity = 0.2f;
@@ -39,7 +43,7 @@ namespace RayTraceRenderer
                 go.AddComponent(tr);
                 mScene.AddObject(go);
             }
-            {
+            {//点光源
                 GameObject go = new GameObject();
                 PointLight light = new PointLight();
                 light.Intensity = 0.6f;
@@ -51,7 +55,7 @@ namespace RayTraceRenderer
                 go.AddComponent(tr);
                 mScene.AddObject(go);
             }
-            {
+            {//平行光
                 GameObject go = new GameObject();
                 DirectionLight light = new DirectionLight();
                 light.Intensity = 0.2f;
@@ -65,7 +69,7 @@ namespace RayTraceRenderer
                 mScene.AddObject(go);
 
             }
-            {
+            {//红球
                 GameObject go = new GameObject();
                 Sphare shap = new Sphare();
                 shap.Radius = 1;
@@ -84,7 +88,7 @@ namespace RayTraceRenderer
                 mScene.AddObject(go);
             }
 
-            {
+            {//蓝球
                 GameObject go = new GameObject();
                 Sphare shap = new Sphare();
                 shap.Radius = 1;
@@ -100,11 +104,11 @@ namespace RayTraceRenderer
                 go.AddComponent(shap);
                 go.AddComponent(mat);
                 go.AddComponent(tr);
-                go.AddComponent(new MoveAround());
+                //go.AddComponent(new MoveAround());
                 mScene.AddObject(go);
             }
 
-            {
+            {//绿球
                 GameObject go = new GameObject();
                 Sphare shap = new Sphare();
                 shap.Radius = 1;
@@ -123,7 +127,7 @@ namespace RayTraceRenderer
                 mScene.AddObject(go);
             }
 
-            {
+            {//黄球
                 GameObject go = new GameObject();
                 Sphare shap = new Sphare();
                 shap.Radius = 1000;
@@ -141,11 +145,75 @@ namespace RayTraceRenderer
                 go.AddComponent(tr);
                 mScene.AddObject(go);
             }
-            mScene.Awake();
-            mScene.Start();
+
 
         }
 
+        void InitScene2()
+        {
+            {//环境光
+                GameObject go = new GameObject();
+                AmbientLight light = new AmbientLight();
+                light.Intensity = 0.4f;
+
+                Transform tr = new Transform();
+                tr.Position = Vector3.Zero;
+
+                go.AddComponent(light);
+                go.AddComponent(tr);
+                mScene.AddObject(go);
+            }
+
+            {//平行光
+                GameObject go = new GameObject();
+                DirectionLight light = new DirectionLight();
+                light.Intensity = 0.6f;
+                light.Direction = new Vector3(0, 4, -3);
+
+                Transform tr = new Transform();
+                tr.Position = Vector3.Zero;
+
+                go.AddComponent(light);
+                go.AddComponent(tr);
+                mScene.AddObject(go);
+
+            }
+            {//球
+                int count = 5;
+                for (int x = 0; x < count; x++)
+                {
+                    for (int y = 0; y < count; y++)
+                    {
+                        int r = Math.Max(Math.Abs(x - count / 2), Math.Abs(y - count / 2));
+                        CreatBall(Color.Yellow, new Vector3(x - count / 2, y - count / 2, 0), 0.45f, r);
+                    }
+                }
+            }
+        }
+
+        private void CreatBall(Color color, Vector3 pos, float radius, float angle)
+        {
+            GameObject go = new GameObject();
+            Sphare shap = new Sphare();
+            shap.Radius = radius;
+
+            Material mat = new Material();
+            mat.Color = color;
+            mat.Specular = 500;
+            mat.Reflective = 0f;
+
+            Transform tr = new Transform();
+            tr.Position = pos;
+
+            MoveWave mw = new MoveWave();
+            mw.Angle = angle;
+
+            go.AddComponent(shap);
+            go.AddComponent(mat);
+            go.AddComponent(tr);
+            go.AddComponent(mw);
+            mScene.AddObject(go);
+        }
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);

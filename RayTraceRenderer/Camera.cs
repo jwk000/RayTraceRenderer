@@ -9,10 +9,10 @@ namespace RayTraceRenderer
 {
     internal class Camera
     {
-        public const int Cw = 600;//画布宽度
-        public const int Ch = 600;//画布高度
-        public const int Vw = 2;//视口宽度
-        public const int Vh = 2;//视口高度
+        public const int Cw = 1920;//画布宽度
+        public const int Ch = 1080;//画布高度
+        public const float Vw = 1.6f;//视口宽度
+        public const float Vh = 0.9f;//视口高度
         public const int d = 1;//画布和视口的距离
         public const int f = 999999;
         Vector3 O = Vector3.Zero;//相机原点
@@ -55,6 +55,7 @@ namespace RayTraceRenderer
         {
             x = Cw / 2 + x;
             y = Ch / 2 - y;
+
             if (x < 0 || x >= Cw || y < 0 || y >= Ch)
             {
                 return;

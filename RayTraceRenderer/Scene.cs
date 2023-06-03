@@ -33,6 +33,15 @@ namespace RayTraceRenderer
         {
             mCamera.Render();
             mImage = mCamera.Image;
+            SaveImage();
+        }
+
+        //保存图片
+        void SaveImage()
+        {
+            //图片名字格式：年-月-日-时-分-秒
+            string name = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+            mImage.Save($"image/{name}.png");
         }
 
         //P是物体表面接收光照的点，N是法线

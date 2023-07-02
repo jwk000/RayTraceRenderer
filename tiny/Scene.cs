@@ -56,7 +56,7 @@ namespace tiny
         public Material Material { get; set; }
     }
     //球体
-    class Sphare :GameObject
+    class Sphare : GameObject
     {
         public Vector3 Center;
         public float Radius;
@@ -92,7 +92,7 @@ namespace tiny
         }
     }
     //平面
-    class Plane :GameObject
+    class Plane : GameObject
     {
         public float K;//N*P=K
         public Vector3 Normal;
@@ -103,12 +103,12 @@ namespace tiny
         public override List<float> IntersectRay(Vector3 O, Vector3 D)
         {
             List<float> ret = new List<float>();
-            float u= Vector3.Dot(D, Normal);
+            float u = Vector3.Dot(D, Normal);
             if (u == 0)
             {
                 return ret;
             }
-            float t = (K-Vector3.Dot(O, Normal)) / u;
+            float t = (K - Vector3.Dot(O, Normal)) / u;
             if (t < 0)
             {
                 return ret;
@@ -130,9 +130,9 @@ namespace tiny
         public float Intensity;//光强
     }
     //环境光
-    class AmbientLight:Light
+    class AmbientLight : Light
     {
-        
+
     }
     //点光源
     class PointLight : Light
@@ -150,6 +150,8 @@ namespace tiny
         public Color Color;
         public int Specular;//高光系数
         public float Reflective;//反射系数 0没有反射 1完全反射
+        public float Refraction;//折射率 真空1 水 1.33 玻璃1.5
+        public float Refractive;//折射系数 0没有折射 1完全折射
     }
     //场景
     class Scene
@@ -169,7 +171,7 @@ namespace tiny
             {
                 PointLight light = new PointLight();
                 light.Intensity = 0.6f;
-                light.Pos= new Vector3(600, 400, 100);
+                light.Pos = new Vector3(600, 400, 100);
                 mLights.Add(light);
             }
             {
@@ -181,24 +183,28 @@ namespace tiny
             {
                 Sphare obj = new Sphare();
                 obj.Radius = 150;
-                obj.Center= new Vector3(-200, -100, 800); 
+                obj.Center = new Vector3(-200, -100, 800);
 
                 Material mat = new Material();
                 mat.Color = Color.Red;
                 mat.Specular = 1000;
                 mat.Reflective = 0f;
+                mat.Refraction = 1.5f;
+                mat.Refractive = 0.5f;
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
             {
                 Sphare obj = new Sphare();
                 obj.Radius = 200;
-                obj.Center= new Vector3(200, -100, 800); 
+                obj.Center = new Vector3(200, -100, 800);
 
                 Material mat = new Material();
                 mat.Color = Color.LightBlue;
                 mat.Specular = 500;
-                mat.Reflective = 0.1f;
+                mat.Reflective = 0.5f;
+                mat.Refraction = 0f;
+                mat.Refractive = 0;
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
@@ -208,9 +214,11 @@ namespace tiny
                 obj.Normal = new Vector3(0, 1, 0);
 
                 Material mat = new Material();
-                mat.Color = Color.LightYellow;
+                mat.Color = Color.Yellow;
                 mat.Specular = 1000;
                 mat.Reflective = 0.2f;
+                mat.Refraction = 0;
+                mat.Refractive = 0;
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
@@ -308,15 +316,20 @@ namespace tiny
             //反射光
             Vector3 R = ReflectRay(-D, N);
             Color reflect_color = TraceRay(P, R, 0.001f, float.MaxValue, depth - 1);
-
+            
             //折射光
-            //Vector3 F = RefractRay(-D, N, 1, mat.Refraction);
-            //Color refract_color = TraceRay(P, F, 0.001f, float.MaxValue, depth - 1);
-
+            Color refract_color = Color.Black;
+            float t = mat.Refractive;
+            if (t > 0)
+            {
+                Vector3 F = RefractRay(-D, N, 1, mat.Refraction);
+                refract_color = TraceRay(P, F, 0.001f, float.MaxValue, depth - 1);
+            }
+            float v = MathF.Max(0, 1 - r - t);
             Color cc = Color.FromArgb(
-                (int)(localcolor.R * (1 - r) + reflect_color.R * r), 
-                (int)(localcolor.G * (1 - r) + reflect_color.G * r),
-                (int)(localcolor.B * (1 - r) + reflect_color.B * r));
+                (int)(localcolor.R * v + refract_color.R * t + reflect_color.R * r),
+                (int)(localcolor.G * v + refract_color.G * t + reflect_color.G * r),
+                (int)(localcolor.B * v + refract_color.B * t + reflect_color.B * r));
 
             return cc;
         }
@@ -353,16 +366,45 @@ namespace tiny
             return 2 * N * Vector3.Dot(N, V) - V;
         }
 
-        //V是视线方向，N是法线，r是折射率，返回折射视线方向
+        //V是视线方向，N是法线，r是折射率，返回折射后的视线方向
+        // r1/r2 = sinb/sina
         Vector3 RefractRay(Vector3 V, Vector3 N, float r1, float r2)
         {
             float r = r2 / r1;
             float cosa = Vector3.Dot(V, N);
             Vector3 Vp = V - cosa * N;
             Vector3 Rp = r * MathF.Sqrt(1 - cosa * cosa) * (-Vector3.Normalize(Vp));
-            Vector3 Rn = MathF.Sqrt(1 - r * r * (1 - cosa * cosa)) * (-N);
+            float cos2r = 1 - r * r * (1 - cosa * cosa);
+            if (cos2r < 0)
+            {
+                return Vector3.Zero;
+            }
+            Vector3 Rn = MathF.Sqrt(cos2r) * (-N);
             Vector3 R = Rp + Rn;
             return R;
+        }
+
+        //fresnel方程近似，schlick方程
+        //计算光线的反射光线能量占入射光线能量的比例，反射率（根据能量守恒，透射率=1-反射率）
+        float schlick(Vector3 V, Vector3 N, float eta)
+        {
+
+            float f0 = (eta - 1.0f) / (eta + 1.0f);
+            f0 *= f0;
+            float cos_theta = -Vector3.Dot(V, N);
+            if (eta > 1.0)
+            {
+                float cos2_t = 1.0f - eta * eta * (1.0f - cos_theta * cos_theta);
+                if (cos2_t < 0.0) return 1.0f;
+                cos_theta = MathF.Sqrt(cos2_t);
+            }
+
+            float x = 1.0f - cos_theta;
+
+            float x2 = x * x;
+            float x5 = x2 * x2 * x;
+
+            return f0 + (1.0f - f0) * x5;
         }
 
     }

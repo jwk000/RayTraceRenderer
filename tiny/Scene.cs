@@ -152,6 +152,27 @@ namespace tiny
         public float Reflective;//反射系数 0没有反射 1完全反射
         public float Refractive;//透光率，折射系数 0没有折射 1完全折射
         public float Refraction;//折射率 真空1 水 1.33 玻璃1.5
+
+        public virtual Color GetColor(Vector3 P)
+        {
+            return Color;
+        }
+    }
+
+    class PlaneMaterial : Material
+    {
+        public int GridSize = 50;
+        public Color ColorB = Color.Black;
+        public override Color GetColor(Vector3 P)
+        {
+            int x = GridSize * 100 + (int)P.X;
+            int z = GridSize * 100 + (int)P.Z;
+            if (x / GridSize % 2 + z / GridSize % 2 == 1)
+            {
+                return ColorB;
+            }
+            return Color;
+        }
     }
     //场景
     class Scene
@@ -223,13 +244,14 @@ namespace tiny
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
-            {//黄色平面有反射
+            {//黑白棋盘平面有反射
                 Plane obj = new Plane();
                 obj.K = -300;
                 obj.Normal = new Vector3(0, 1, 0);
 
-                Material mat = new Material();
+                PlaneMaterial mat = new PlaneMaterial();
                 mat.Color = Color.Yellow;
+                mat.ColorB = Color.Black;
                 mat.Specular = 1000;
                 mat.Reflective = 0.2f;
                 mat.Refraction = 0;
@@ -276,7 +298,7 @@ namespace tiny
 
                         //阴影检测
                         var shadow_o = ClosestIntersection(P, L, tmin, tmax, out float closest_t);
-                        if (shadow_o != null && shadow_o.Material.Refractive==0)//忽略透明物体
+                        if (shadow_o != null && shadow_o.Material.Refractive == 0)//忽略透明物体
                         {
                             continue; //阴影里的点不受光照
                         }
@@ -321,7 +343,7 @@ namespace tiny
             Vector3 N = closest_o.GetNormal(P);//P点的法线
             N = Vector3.Normalize(N);//归一化
             Vector3 V = -Vector3.Normalize(D);
-            float eta = 1/mat.Refraction;
+            float eta = 1 / mat.Refraction;
             if (inner)
             {
                 N = -N;
@@ -332,7 +354,7 @@ namespace tiny
             if (!inner)
             {
                 float I = ComputeLighting(P, N, V, mat);
-                Color c = mat.Color;
+                Color c = mat.GetColor(P);
                 localcolor = Color.FromArgb((int)(c.R * I), (int)(c.G * I), (int)(c.B * I));
             }
             if (depth <= 0)
@@ -351,9 +373,9 @@ namespace tiny
             if (t > 0)
             {
                 float s = schlick(V, N, eta);//反射率和折射率和观察角度有关
-                
+
                 r = t * s;
-                t = t * (1-s);
+                t = t * (1 - s);
 
 
                 Vector3 F = RefractRay(V, N, eta);
@@ -372,7 +394,7 @@ namespace tiny
             float cr = localcolor.R * v + refract_color.R * t + reflect_color.R * r;
             float cg = localcolor.G * v + refract_color.G * t + reflect_color.G * r;
             float cb = localcolor.B * v + refract_color.B * t + reflect_color.B * r;
-            Color cc = Color.FromArgb((int)MathF.Min(255,cr),(int)MathF.Min(255, cg),(int)MathF.Min(255, cb));
+            Color cc = Color.FromArgb((int)MathF.Min(255, cr), (int)MathF.Min(255, cg), (int)MathF.Min(255, cb));
 
             return cc;
         }
@@ -420,7 +442,7 @@ namespace tiny
             {
                 return Vector3.Zero;
             }
-            Vector3 Rp =  eta * (cos_a * N - V);
+            Vector3 Rp = eta * (cos_a * N - V);
             Vector3 Rn = MathF.Sqrt(cos_2_b) * (-N);
             Vector3 R = Rp + Rn;
             return R;
@@ -435,7 +457,7 @@ namespace tiny
             float f0 = (eta - 1.0f) / (eta + 1.0f);
             f0 *= f0;
             float cos_theta = Vector3.Dot(V, N);
-            if(cos_theta < 0)
+            if (cos_theta < 0)
             {
                 return 1;
             }

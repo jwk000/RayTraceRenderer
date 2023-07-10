@@ -13,7 +13,7 @@ namespace tiny
         public const int Ch = 800;//画布高度
         public const int d = 400;//相机看到的最近距离，画布和相机的距离
         public const int f = 9999; //相机看到的最远距离
-        public Color BGColor = Color.DarkGray; //背景色
+        public Color BGColor = Color.SkyBlue; //背景色
         public Vector3 O = Vector3.Zero;//相机原点
         public Bitmap Image = new Bitmap(Cw, Ch);//输出画布
         Scene scene;
@@ -30,7 +30,7 @@ namespace tiny
                 for (int y = -Ch / 2; y < Ch / 2; y += 1)
                 {
                     Vector3 D = new Vector3(x, y, d);
-                    Color c = scene.TraceRay(O, D, 1, int.MaxValue, 1);
+                    Color c = scene.TraceRay(O, D, 1, int.MaxValue, 8, false);
                     SetPixel(x, y, c);
                 }
             }
@@ -150,8 +150,8 @@ namespace tiny
         public Color Color;
         public int Specular;//高光系数
         public float Reflective;//反射系数 0没有反射 1完全反射
+        public float Refractive;//透光率，折射系数 0没有折射 1完全折射
         public float Refraction;//折射率 真空1 水 1.33 玻璃1.5
-        public float Refractive;//折射系数 0没有折射 1完全折射
     }
     //场景
     class Scene
@@ -160,6 +160,7 @@ namespace tiny
         public List<Light> mLights = new List<Light>();
         public Camera mCamera;
         public Bitmap mImage => mCamera.Image;
+        Random mRandor = new Random();
         public Scene()
         {
             mCamera = new Camera(this);
@@ -180,24 +181,24 @@ namespace tiny
                 light.Dir = new Vector3(1, -1, 1);
                 mLights.Add(light);
             }
-            {
+            {//红球只有漫反射高光
                 Sphare obj = new Sphare();
                 obj.Radius = 150;
-                obj.Center = new Vector3(-200, -100, 800);
+                obj.Center = new Vector3(200, -100, 800);
 
                 Material mat = new Material();
                 mat.Color = Color.Red;
                 mat.Specular = 1000;
                 mat.Reflective = 0f;
-                mat.Refraction = 1.5f;
-                mat.Refractive = 0.5f;
+                mat.Refraction = 1f;
+                mat.Refractive = 0f;
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
-            {
+            {//蓝球有反射
                 Sphare obj = new Sphare();
                 obj.Radius = 200;
-                obj.Center = new Vector3(200, -100, 800);
+                obj.Center = new Vector3(-200, -100, 800);
 
                 Material mat = new Material();
                 mat.Color = Color.LightBlue;
@@ -208,7 +209,21 @@ namespace tiny
                 obj.Material = mat;
                 mObjects.Add(obj);
             }
-            {
+            {//白球有折射
+                Sphare obj = new Sphare();
+                obj.Radius = 100;
+                obj.Center = new Vector3(50, -180, 600);
+
+                Material mat = new Material();
+                mat.Color = Color.White;
+                mat.Specular = 1000;
+                mat.Reflective = 0.1f;
+                mat.Refraction = 1.8f;
+                mat.Refractive = 1f;
+                obj.Material = mat;
+                mObjects.Add(obj);
+            }
+            {//黄色平面有反射
                 Plane obj = new Plane();
                 obj.K = -300;
                 obj.Normal = new Vector3(0, 1, 0);
@@ -261,7 +276,7 @@ namespace tiny
 
                         //阴影检测
                         var shadow_o = ClosestIntersection(P, L, tmin, tmax, out float closest_t);
-                        if (shadow_o != null)
+                        if (shadow_o != null && shadow_o.Material.Refractive==0)//忽略透明物体
                         {
                             continue; //阴影里的点不受光照
                         }
@@ -290,7 +305,9 @@ namespace tiny
             return MathF.Min(1, ret);
         }
 
-        public Color TraceRay(Vector3 O, Vector3 D, float tmin, float tmax, int depth)
+        //depth是递归深度
+        //inner是在物体内部
+        public Color TraceRay(Vector3 O, Vector3 D, float tmin, float tmax, int depth, bool inner)
         {
             GameObject closest_o = ClosestIntersection(O, D, tmin, tmax, out float closest_t);
 
@@ -303,33 +320,59 @@ namespace tiny
             Vector3 P = O + closest_t * D; //相机射线和物体的交点
             Vector3 N = closest_o.GetNormal(P);//P点的法线
             N = Vector3.Normalize(N);//归一化
-            float I = ComputeLighting(P, N, -D, mat);
-            Color c = mat.Color;
-            Color localcolor = Color.FromArgb((int)(c.R * I), (int)(c.G * I), (int)(c.B * I));
+            Vector3 V = -Vector3.Normalize(D);
+            float eta = 1/mat.Refraction;
+            if (inner)
+            {
+                N = -N;
+                eta = mat.Refraction;
+            }
 
-            float r = mat.Reflective;
-            if (depth <= 0 || r <= 0)
+            Color localcolor = Color.Black;
+            if (!inner)
+            {
+                float I = ComputeLighting(P, N, V, mat);
+                Color c = mat.Color;
+                localcolor = Color.FromArgb((int)(c.R * I), (int)(c.G * I), (int)(c.B * I));
+            }
+            if (depth <= 0)
             {
                 return localcolor;
             }
 
             //反射光
-            Vector3 R = ReflectRay(-D, N);
-            Color reflect_color = TraceRay(P, R, 0.001f, float.MaxValue, depth - 1);
-            
+            Color reflect_color = Color.Black;
+            float r = mat.Reflective;
+
             //折射光
             Color refract_color = Color.Black;
             float t = mat.Refractive;
+
             if (t > 0)
             {
-                Vector3 F = RefractRay(-D, N, 1, mat.Refraction);
-                refract_color = TraceRay(P, F, 0.001f, float.MaxValue, depth - 1);
+                float s = schlick(V, N, eta);//反射率和折射率和观察角度有关
+                
+                r = t * s;
+                t = t * (1-s);
+
+
+                Vector3 F = RefractRay(V, N, eta);
+                if (F != Vector3.Zero) //需要判断有没有发生折射
+                {
+                    refract_color = TraceRay(P, F, 0.001f, float.MaxValue, depth - 1, !inner);
+                }
+            }
+
+            if (r > 0)
+            {
+                Vector3 R = ReflectRay(V, N);
+                reflect_color = TraceRay(P, R, 0.001f, float.MaxValue, depth - 1, inner);
             }
             float v = MathF.Max(0, 1 - r - t);
-            Color cc = Color.FromArgb(
-                (int)(localcolor.R * v + refract_color.R * t + reflect_color.R * r),
-                (int)(localcolor.G * v + refract_color.G * t + reflect_color.G * r),
-                (int)(localcolor.B * v + refract_color.B * t + reflect_color.B * r));
+            float cr = localcolor.R * v + refract_color.R * t + reflect_color.R * r;
+            float cg = localcolor.G * v + refract_color.G * t + reflect_color.G * r;
+            float cb = localcolor.B * v + refract_color.B * t + reflect_color.B * r;
+            Color cc = Color.FromArgb((int)MathF.Min(255,cr),(int)MathF.Min(255, cg),(int)MathF.Min(255, cb));
 
             return cc;
         }
@@ -366,20 +409,19 @@ namespace tiny
             return 2 * N * Vector3.Dot(N, V) - V;
         }
 
-        //V是视线方向，N是法线，r是折射率，返回折射后的视线方向
-        // r1/r2 = sinb/sina
-        Vector3 RefractRay(Vector3 V, Vector3 N, float r1, float r2)
+        //V是视线方向，N是法线，r是折射率，返回折射后的射线方向
+        // eta_a*sin_a=eta_b*sin_b
+        Vector3 RefractRay(Vector3 V, Vector3 N, float eta)
         {
-            float r = r2 / r1;
-            float cosa = Vector3.Dot(V, N);
-            Vector3 Vp = V - cosa * N;
-            Vector3 Rp = r * MathF.Sqrt(1 - cosa * cosa) * (-Vector3.Normalize(Vp));
-            float cos2r = 1 - r * r * (1 - cosa * cosa);
-            if (cos2r < 0)
+            float cos_a = Vector3.Dot(V, N);
+            float sin_2_a = 1 - cos_a * cos_a;
+            float cos_2_b = 1 - (sin_2_a) * (eta * eta);
+            if (cos_2_b < 0)
             {
                 return Vector3.Zero;
             }
-            Vector3 Rn = MathF.Sqrt(cos2r) * (-N);
+            Vector3 Rp =  eta * (cos_a * N - V);
+            Vector3 Rn = MathF.Sqrt(cos_2_b) * (-N);
             Vector3 R = Rp + Rn;
             return R;
         }
@@ -388,10 +430,15 @@ namespace tiny
         //计算光线的反射光线能量占入射光线能量的比例，反射率（根据能量守恒，透射率=1-反射率）
         float schlick(Vector3 V, Vector3 N, float eta)
         {
-
+            V = Vector3.Normalize(V);
+            N = Vector3.Normalize(N);
             float f0 = (eta - 1.0f) / (eta + 1.0f);
             f0 *= f0;
-            float cos_theta = -Vector3.Dot(V, N);
+            float cos_theta = Vector3.Dot(V, N);
+            if(cos_theta < 0)
+            {
+                return 1;
+            }
             if (eta > 1.0)
             {
                 float cos2_t = 1.0f - eta * eta * (1.0f - cos_theta * cos_theta);
